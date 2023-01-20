@@ -1,0 +1,26 @@
+extends:
+  - '@digitallinguistics/eslint-config'
+  - plugin:chai-friendly/recommended
+
+env:
+  mocha: true
+  shared-node-browser: true
+
+plugins:
+  - chai-friendly
+
+overrides:
+  - files:
+      - '**/*.test.*'
+    globals:
+      process: true
+    rules:
+      func-names:            off
+      prefer-arrow-callback: off
+      max-nested-callbacks:  off
+      max-params:            off
+      no-invalid-this:       off
+      no-magic-numbers:      off
+      no-param-reassign:     off
+      no-unused-expressions: off
+      chai-friendly/no-unused-expressions: error
