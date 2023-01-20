@@ -1,0 +1,29 @@
+{
+  "name": "@digitallinguistics/db",
+  "version": "0.1.0",
+  "description": "A Node.js Cosmos DB client for DLx projects.",
+  "keywords": [
+    "Cosmos DB",
+    "database",
+    "linguistics",
+    "Digital Linguistics",
+    "DLx"
+  ],
+  "homepage": "https://github.com/digitallinguistics/db",
+  "bugs": "https://github.com/digitallinguistics/db/issues",
+  "license": "MIT",
+  "author": {
+    "name": "Daniel W. Hieber",
+    "url": "https://github.com/dwhieb"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digitallinguistics/db.git"
+  },
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {},
+  "publishConfig": {
+    "access": "public"
+  }
+}
