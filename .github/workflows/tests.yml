@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  COSMOS_ENDPOINT:              https://localhost:8081
+  COSMOS_KEY:                   C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw== # well-known key for Cosmos DB emulator
+  NODE_TLS_REJECT_UNAUTHORIZED: 0
+
+jobs:
+
+  run-tests:
+    name:    run tests
+    runs-on: windows-latest
+    steps:
+
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: cache Node.js modules
+        id:   cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ hashFiles('**/package-lock.json') }}
+
+      - name: install dependencies
+        run:  npm ci
+
+      - name: run stop-only test
+        run:  npm run stop-only
+
+      - name: start database
+        run:  npm run start-db
+
+      - name: run tests
+        run:  npm test
