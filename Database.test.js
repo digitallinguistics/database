@@ -4,7 +4,7 @@ dotenv.config()
 
 import Database       from './Database.js'
 import { expect }     from 'chai'
-import { randomInt, randomUUID } from 'crypto'
+import { randomUUID } from 'crypto'
 
 import {
   BibliographicReference,
@@ -47,6 +47,37 @@ describe(`Database`, function() {
 
   // GENERIC METHODS
 
+  describe(`addOne`, function() {
+
+    it(`201 Created`, async function() {
+
+      const testVariable = randomUUID()
+
+      const { data, status } = await db.addOne(`data`, new Lexeme({ testVariable }))
+
+      expect(status).to.equal(201)
+      expect(data.testVariable).to.equal(testVariable)
+
+    })
+
+    it(`409 Conflict`, async function() {
+
+      const lexeme = new Lexeme({ id: randomUUID() })
+
+      await db.addOne(`data`, lexeme)
+
+      const { data, message, status } = await db.addOne(`data`, lexeme)
+
+      expect(data).to.be.undefined
+      expect(message).to.equal(`Item with ID ${ lexeme.id } already exists.`)
+      expect(status).to.equal(409)
+
+    })
+
+  })
+
+  describe(`addMany`, function() {})
+
   describe(`count`, function() {
 
     it(`200 OK`, async function() {
@@ -59,7 +90,7 @@ describe(`Database`, function() {
         },
       }))
 
-      const { count, status } = await db.count(`Lexeme`)
+      const { data: { count }, status } = await db.count(`Lexeme`)
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -84,7 +115,7 @@ describe(`Database`, function() {
       await db.seedMany(`data`, seedCount, lexemeA)
       await db.seedMany(`data`, seedCount, lexemeB)
 
-      const { count, status } = await db.count(`Lexeme`, { language: languageA })
+      const { data: { count }, status } = await db.count(`Lexeme`, { language: languageA })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -113,7 +144,7 @@ describe(`Database`, function() {
       await db.seedMany(`data`, seedCount, lexemeA)
       await db.seedMany(`data`, seedCount, lexemeB)
 
-      const { count, status } = await db.count(`Lexeme`, { project })
+      const { data: { count }, status } = await db.count(`Lexeme`, { project })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -136,7 +167,7 @@ describe(`Database`, function() {
       await db.seedMany(`metadata`, seedCount, languageA)
       await db.seedMany(`metadata`, seedCount, languageB)
 
-      const { count, status } = await db.count(`Language`, { project })
+      const { data: { count }, status } = await db.count(`Language`, { project })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -178,7 +209,7 @@ describe(`Database`, function() {
 
       await db.seedMany(`data`, seedCount, lexemeC)
 
-      const { count, status } = await db.count(`Lexeme`, {
+      const { data: { count }, status } = await db.count(`Lexeme`, {
         language: languageA,
         project:  projectA,
       })

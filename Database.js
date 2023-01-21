@@ -1,11 +1,8 @@
+import chunk            from './utilities/chunk.js'
 import { CosmosClient } from '@azure/cosmos'
+import DatabaseResponse from './DatabaseResponse.js'
 
 // NOTE: Cosmos DB Create methods modify the original object by setting an `id` property on it.
-
-// https://github.com/30-seconds/30-seconds-of-code/blob/master/snippets/chunk.md
-function chunk(arr, size) {
-  return Array.from({ length: Math.ceil(arr.length / size) }, (v, i) => arr.slice(i * size, i * size + size))
-}
 
 /**
  * A class for managing a Cosmos DB database connection.
@@ -57,26 +54,27 @@ export default class Database {
    * Deletes all the items from all the containers in the database.
    * @returns {Promise}
    */
-  async clear(quiet = true) {
+  async clear({ silent = true } = {}) {
 
-    if (!quiet) console.info(`Clearing the "${ this.dbName }" database.`)
+    if (!silent) console.info(`Clearing the "${ this.dbName }" database.`)
 
     await Promise.all([
       this.clearContainer(`data`),
       this.clearContainer(`metadata`),
     ])
 
-    if (!quiet) console.info(`The "${ this.dbName }" database has been cleared.`)
+    if (!silent) console.info(`The "${ this.dbName }" database has been cleared.`)
 
   }
 
   /**
    * Deletes all the items from a single container.
+   * @param {String} container The name of the container to clear items from.
    * @returns {Promise}
    */
-  async clearContainer(containerName) {
+  async clearContainer(container) {
 
-    const { resources } = await this[containerName].items.readAll().fetchAll()
+    const { resources } = await this[container].items.readAll().fetchAll()
 
     const batches = chunk(resources, this.bulkLimit)
 
@@ -85,10 +83,10 @@ export default class Database {
       const operations = batch.map(item => ({
         id:            item.id,
         operationType: `Delete`,
-        partitionKey:  containerName === `data` ? item.language.id : item.type,
+        partitionKey:  container === `data` ? item.language.id : item.type,
       }))
 
-      await this[containerName].items.bulk(operations)
+      await this[container].items.bulk(operations)
 
     }
 
@@ -114,38 +112,39 @@ export default class Database {
 
   /**
    * Add a single item to a container.
-   * @param {String} containerName The name of the container to add the item to.
-   * @param {Object} data          The data to add.
+   * @param {String} container The name of the container to add the item to.
+   * @param {Object} data      The data to add.
+   * @returns {Promise<CosmosDBDatabaseResponse>}
    */
-  seedOne(containerName, data = {}) {
+  seedOne(container, data = {}) {
 
-    if (containerName === `data` && !data.language.id) {
-      throw new Error(`Items in the container ${ containerName } container require a language ID.`)
+    if (container === `data` && !data.language.id) {
+      throw new Error(`Items in the container ${ container } container require a language ID.`)
     }
 
-    if (containerName === `metadata` && !data.type) {
-      throw new Error(`Items in the container ${ containerName } container require a type.`)
+    if (container === `metadata` && !data.type) {
+      throw new Error(`Items in the container ${ container } container require a type.`)
     }
 
-    return this[containerName].items.create(data)
+    return this[container].items.create(data)
 
   }
 
   /**
    *
-   * @param {String}  containerName The name of the container to seed the data to.
-   * @param {Integer} count         The number of copies to add.
-   * @param {Object}  [data={}]     The data to add.
-   * @returns {Promise}
+   * @param {String}  container The name of the container to seed the data to.
+   * @param {Integer} count     The number of copies to add.
+   * @param {Object}  [data={}] The data to add.
+   * @returns {Promise<Array>}
    */
-  async seedMany(containerName, count, data = {}) {
+  async seedMany(container, count, data = {}) {
 
-    if (containerName === `data` && !data.language.id) {
-      throw new Error(`Items in the ${ containerName } container require a language ID.`)
+    if (container === `data` && !data.language.id) {
+      throw new Error(`Items in the ${ container } container require a language ID.`)
     }
 
-    if (containerName === `metadata` && !data.type) {
-      throw new Error(`Items in the ${ containerName } container require a type.`)
+    if (container === `metadata` && !data.type) {
+      throw new Error(`Items in the ${ container } container require a type.`)
     }
 
     const copy = Object.assign({}, data)
@@ -154,7 +153,7 @@ export default class Database {
 
     const operations    = []
     const operationType = `Create`
-    const partitionKey  = containerName === `data` ? copy.language?.id : copy.type
+    const partitionKey  = container === `data` ? copy.language?.id : copy.type
 
     for (let i = 0; i < count; i++) {
       operations[i] = {
@@ -169,7 +168,7 @@ export default class Database {
     for (const batch of batches) {
       // NB: In order for `.batch()` to work, add a partition key to each item (`language.id` or `type`),
       // and provide the *value* of the partition key as the 2nd argument to `batch()`.
-      const response = await this[containerName].items.batch(batch, partitionKey)
+      const response = await this[container].items.batch(batch, partitionKey)
       results.push(...response.result)
     }
 
@@ -198,6 +197,27 @@ export default class Database {
   // GENERIC METHODS
 
   /**
+   * Add a single item to the database.
+   * NOTE: `Create` operations do not require a partition key (it's determined automatically).
+   * @param {String} container
+   * @param {Object} [data={}]
+   * @returns {Promise<DatabaseResponse>}
+   */
+  async addOne(container, data) {
+    try {
+
+      const { resource, statusCode } = await this[container].items.create(data)
+      return new DatabaseResponse({ data: resource, status: statusCode })
+
+    } catch (err) {
+
+      const message = err.code === 409 ? `Item with ID ${ data.id } already exists.` : err.message
+      return new DatabaseResponse({ message, status: err.code })
+
+    }
+  }
+
+  /**
    * Count the number of items of the specified type. Use the `options` parameter to provide various filters.
    * The `language` option is optimized for the `data` container. It won't ever be run on the `metadata` container.
    * The `project` option is optimized for the `metadata` container but not the `data` container.
@@ -206,68 +226,68 @@ export default class Database {
    * @param {Object} [options={}]       An options hash.
    * @param {String} [options.language] The ID of the language to filter for.
    * @param {String} [options.project]  The ID of the project to filter for.
-   * @returns {Promise<Object>} Returns an object with `count` and `status` properties.
+   * @returns {Promise<DatabaseResponse>}
    */
   async count(type, options = {}) {
 
-    const containerName         = this.containerNames[type]
+    const container             = this.containerNames[type]
     const { language, project } = options
 
-    let query = `SELECT COUNT(${ containerName }) FROM ${ containerName } WHERE ${ containerName }.type = '${ type }'`
+    let query = `SELECT COUNT(${ container }) FROM ${ container } WHERE ${ container }.type = '${ type }'`
 
-    if (language) query += ` AND ${ containerName }.language.id = '${ language }'`
+    if (language) query += ` AND ${ container }.language.id = '${ language }'`
 
     if (project) {
       query += ` AND EXISTS(
         SELECT VALUE project
-        FROM project IN ${ containerName }.projects
+        FROM project IN ${ container }.projects
         WHERE project.id = '${ project }'
       )`
     }
 
-    const { resources }   = await this[containerName].items.query(query).fetchAll()
+    const { resources }   = await this[container].items.query(query).fetchAll()
     const [{ $1: count }] = resources
 
-    return { count, status: 200 }
+    return new DatabaseResponse({ data: { count } })
 
   }
 
   /**
    * Get a single item from the database.
-   * @param {(`data`|`metadata`)} containerName The name of the container to get the item from.
-   * @param {String}              partition     The partition to read from.
-   * @param {String}              id            The ID of the item to retrieve.
-   * @returns {Promise<Object>}
+   * @param {(`data`|`metadata`)} container The name of the container to get the item from.
+   * @param {String}              partition The partition to read from.
+   * @param {String}              id        The ID of the item to retrieve.
+   * @returns {Promise<DatabaseResponse>}
    */
-  async getOne(containerName, partition, id) {
+  async getOne(container, partition, id) {
 
     // NB: Best practice is that point reads always have a partition specified.
     // If you don't, your database model probably needs a redesign.
-    const { resource, statusCode } = await this[containerName].item(id, partition).read()
+    const { resource, statusCode } = await this[container].item(id, partition).read()
 
-    return { data: resource, status: statusCode }
+    return new DatabaseResponse({ data: resource, status: statusCode })
 
   }
 
   /**
    * Get multiple items from the database by partition key and ID.
-   * @param {String}        containerName
+   * @param {String}        container
    * @param {String}        partitionKey
    * @param {Array<String>} ids
-   * @returns {Promise<Object>}
+   * @returns {Promise<DatabaseResponse>}
    */
-  async getMany(containerName, partitionKey, ids = []) {
+  async getMany(container, partitionKey, ids = []) {
 
     if (ids.length > this.bulkLimit) {
-      return {
+      return new DatabaseResponse({
         message: `You can only retrieve ${ this.bulkLimit } items at a time.`,
         status:  400,
-      }
+      })
     }
 
     const operationType = `Read`
     const operations    = ids.map(id => ({ id, operationType, partitionKey }))
-    const results       = await this[containerName].items.bulk(operations, { continueOnError: true })
+    const results       = await this[container].items.bulk(operations, { continueOnError: true })
 
     const data = results.map(({ resourceBody, statusCode }, i) => ({
       data:   resourceBody,
@@ -275,10 +295,10 @@ export default class Database {
       status: statusCode,
     }))
 
-    return {
+    return new DatabaseResponse({
       data,
       status: 207,
-    }
+    })
 
   }
 
@@ -288,7 +308,7 @@ export default class Database {
   /**
    * Retrieve a single Language from the database.
    * @param {String} id The ID of the language to retrieve.
-   * @returns {Promise<Language>}
+   * @returns {Promise<DatabaseResponse>}
    */
   getLanguage(id) {
     return this.getOne(`metadata`, `Language`, id)
@@ -298,7 +318,7 @@ export default class Database {
    * Get multiple languages from the database.
    * @param {Object} [options={}]      An options hash.
    * @param {String} [options.project] The ID of a project to return languages for.
-   * @returns {Promise<Array<Language>>}
+   * @returns {Promise<DatabaseResponse>}
    */
   async getLanguages(options = {}) {
 
@@ -321,7 +341,7 @@ export default class Database {
       data.push(...result.resources)
     }
 
-    return { data, status: 200 }
+    return new DatabaseResponse({ data })
 
   }
 
@@ -329,7 +349,7 @@ export default class Database {
    * Retrieve a single lexeme from the database.
    * @param {String} language The ID of the language the lexeme belongs to. Helps optimize the read operation if present.
    * @param {String} id       The ID of the lexeme to retrieve.
-   * @returns {Promise<Lexeme>}
+   * @returns {Promise<DatabaseResponse>}
    */
   getLexeme(language, id) {
     return this.getOne(`data`, language, id)
@@ -340,7 +360,7 @@ export default class Database {
    * @param {Object} [options={}]       An options hash.
    * @param {String} [options.language] The ID of a language to return lexemes for.
    * @param {String} [options.project]  The ID of a project to return lexemes for.
-   * @returns {Promise<Array<Lexeme>>}
+   * @returns {Promise<DatabaseResponse>}
    */
   async getLexemes(options = {}) {
 
@@ -366,14 +386,14 @@ export default class Database {
       data.push(...result.resources)
     }
 
-    return { data, status: 200 }
+    return new DatabaseResponse({ data })
 
   }
 
   /**
    * Retrieve a single project from the database.
    * @param {String} id The ID of the project to retrieve.
-   * @returns {Promise<Project>}
+   * @returns {Promise<DatabaseResponse>}
    */
   getProject(id) {
     return this.getOne(`metadata`, `Project`, id)
@@ -383,7 +403,7 @@ export default class Database {
    * Get multiple projects from the database.
    * @param {Object} [options={}]   An options hash.
    * @param {String} [options.user] The ID of a user to filter projects for.
-   * @returns {Promise<Array<Project>>}
+   * @returns {Promise<DatabaseResponse>}
    */
   async getProjects(options = {}) {
 
@@ -416,14 +436,14 @@ export default class Database {
       data.push(...result.resources)
     }
 
-    return { data, status: 200 }
+    return new DatabaseResponse({ data })
 
   }
 
   /**
    * Retrieve a single bibliographic reference from the database.
    * @param {String} id The ID of the reference to retrieve.
-   * @returns {Promise<BibliographicReference>}
+   * @returns {Promise<DatabaseResponse>}
    */
   getReference(id) {
     return this.getOne(`metadata`, `BibliographicReference`, id)
@@ -431,7 +451,7 @@ export default class Database {
 
   /**
    * Get all the bibliographic references from the database.
-   * @returns {Promise<Array<BibliographicReference>>}
+   * @returns {Promise<DatabaseResponse>}
    */
   async getReferences() {
 
@@ -444,7 +464,7 @@ export default class Database {
       data.push(...result.resources)
     }
 
-    return { data, status: 200 }
+    return new DatabaseResponse({ data })
 
   }
 
