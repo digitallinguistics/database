@@ -31,8 +31,9 @@ const db = new Database({ dbName, endpoint, key })
 
 describe(`Database`, function() {
 
+  this.timeout(10000)
+
   before(function() {
-    this.timeout(60000)
     return db.setup()
   })
 
