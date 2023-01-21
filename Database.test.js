@@ -53,7 +53,10 @@ describe(`Database`, function() {
 
       const testVariable = randomUUID()
 
-      const { data, status } = await db.addOne(`data`, new Lexeme({ testVariable }))
+      const { data, status } = await db.addOne(`data`, new Lexeme({
+        language: { id: randomUUID() },
+        testVariable,
+      }))
 
       expect(status).to.equal(201)
       expect(data.testVariable).to.equal(testVariable)
@@ -62,7 +65,10 @@ describe(`Database`, function() {
 
     it(`409 Conflict`, async function() {
 
-      const lexeme = new Lexeme({ id: randomUUID() })
+      const lexeme = new Lexeme({
+        id:       randomUUID(),
+        language: { id: randomUUID() },
+      })
 
       await db.addOne(`data`, lexeme)
 
@@ -74,9 +80,50 @@ describe(`Database`, function() {
 
     })
 
+    it(`422 Unprocessable`)
+
   })
 
-  describe(`addMany`, function() {})
+  describe(`addMany`, function() {
+
+    it(`201 OK`, async function() {
+
+      const language = { id: randomUUID() }
+
+      const items = [
+        new Lexeme({ language }),
+        new Lexeme({ language }),
+        new Lexeme({ language }),
+      ]
+
+      const { data, status } = await db.addMany(`data`, language.id, items)
+
+      expect(status).to.equal(201)
+      expect(data).to.have.length(3)
+
+    })
+
+    it(`207 Multi-Status`, async function() {
+
+      const language = { id: randomUUID() }
+      const id       = randomUUID()
+
+      const items = [
+        new Lexeme({ id, language }),
+        new Lexeme({ id, language }),
+      ]
+
+      const { data, status } = await db.addMany(`data`, language.id, items)
+
+      expect(status).to.equal(207)
+      expect(data).to.be.an(`Array`)
+      expect(data.some(result => result.statusCode === 409)).to.be.true
+
+    })
+
+    it(`422 Unprocessable`)
+
+  })
 
   describe(`count`, function() {
 
@@ -439,11 +486,8 @@ describe(`Database`, function() {
 
     it(`200 OK`, async function() {
 
-      const count = 3
-
-      const language = {
-        id: randomUUID(),
-      }
+      const count    = 3
+      const language = { id: randomUUID() }
 
       await db.seedMany(container, count, new Lexeme({ language }))
       await db.seedMany(container, count, new Text({ language }))

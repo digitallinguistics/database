@@ -1,6 +1,8 @@
 import chunk            from './utilities/chunk.js'
 import { CosmosClient } from '@azure/cosmos'
 import DatabaseResponse from './DatabaseResponse.js'
+import types            from './types.js'
+import validate         from './validate.js'
 
 // NOTE: Cosmos DB Create methods modify the original object by setting an `id` property on it.
 
@@ -20,16 +22,9 @@ export default class Database {
   client
 
   /**
-   * A hash that maps types to containers.
+   * A Map of database types > containers.
    */
-  containerNames = {
-    BibliographicReference: `metadata`,
-    Language:               `metadata`,
-    Lexeme:                 `data`,
-    Person:                 `metadata`,
-    Project:                `metadata`,
-    User:                   `metadata`,
-  }
+  types = types
 
   /**
    * Create a new Database client.
@@ -117,17 +112,8 @@ export default class Database {
    * @returns {Promise<CosmosDBDatabaseResponse>}
    */
   seedOne(container, data = {}) {
-
-    if (container === `data` && !data.language.id) {
-      throw new Error(`Items in the container ${ container } container require a language ID.`)
-    }
-
-    if (container === `metadata` && !data.type) {
-      throw new Error(`Items in the container ${ container } container require a type.`)
-    }
-
+    validate(data)
     return this[container].items.create(data)
-
   }
 
   /**
@@ -139,13 +125,7 @@ export default class Database {
    */
   async seedMany(container, count, data = {}) {
 
-    if (container === `data` && !data.language.id) {
-      throw new Error(`Items in the ${ container } container require a language ID.`)
-    }
-
-    if (container === `metadata` && !data.type) {
-      throw new Error(`Items in the ${ container } container require a type.`)
-    }
+    validate(data)
 
     const copy = Object.assign({}, data)
 
@@ -200,10 +180,13 @@ export default class Database {
    * Add a single item to the database.
    * NOTE: `Create` operations do not require a partition key (it's determined automatically).
    * @param {String} container
-   * @param {Object} [data={}]
+   * @param {Object} data
    * @returns {Promise<DatabaseResponse>}
    */
   async addOne(container, data) {
+
+    validate(data)
+
     try {
 
       const { resource, statusCode } = await this[container].items.create(data)
@@ -215,6 +198,53 @@ export default class Database {
       return new DatabaseResponse({ message, status: err.code })
 
     }
+
+  }
+
+  /**
+   * Add multiple items to the database.
+   * NOTE: This is a batch operation. It will fail if any individual operations fail.
+   * NOTE: All items must be part of the same partition (data = `language.id`, metadata = `type`).
+   * @param {String} container
+   * @param {String} partitionKey
+   * @param {Array} [items=[]]
+   */
+  async addMany(container, partitionKey, items = []) {
+
+    const operationType = `Create`
+
+    const operations = items.map(resourceBody => ({
+      operationType,
+      resourceBody,
+    }))
+
+    const batches = chunk(operations, this.bulkLimit)
+    const results = []
+
+    for (const batch of batches) {
+
+      // NB: In order for `.batch()` to work, add a partition key to each item (`language.id` or `type`),
+      // and provide the *value* of the partition key as the 2nd argument to `batch()`.
+      const response = await this[container].items.batch(batch, partitionKey)
+
+      if (response.code === 207) {
+        return new DatabaseResponse({
+          data:   response.result,
+          status: 207,
+        })
+      }
+
+      results.push(...response.result)
+
+    }
+
+    const data = results.map(({ resourceBody }) => resourceBody)
+
+    return new DatabaseResponse({
+      data,
+      status: 201,
+    })
+
   }
 
   /**
@@ -230,7 +260,7 @@ export default class Database {
    */
   async count(type, options = {}) {
 
-    const container             = this.containerNames[type]
+    const container             = this.types.get(type)
     const { language, project } = options
 
     let query = `SELECT COUNT(${ container }) FROM ${ container } WHERE ${ container }.type = '${ type }'`
