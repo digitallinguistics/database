@@ -1,0 +1,44 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/User.json
+name:        Project
+type:        object
+description: An object containing information about a Digitalis user.
+required:
+  - email
+  - type
+properties:
+
+  email:
+    title:       Email
+    type:        string
+    format:      email
+    description: This person's email.
+
+  familyName:
+    title:       'Family Name(s) / Last Name(s)'
+    type:        string
+    description: This person's family name(s) or last name(s).
+
+  givenName:
+    title:       'Given Name(s) / First Name(s)'
+    type:        string
+    description: This person's first name(s) or given name(s), including middle name(s) if any.
+
+  id:
+    title:       ID
+    type:        string
+    format:      uuid
+    description: The ID for this database item.
+
+  orcid:
+    title:       ORCID ID
+    type:        string
+    format:      isni
+    description: This person's ORCID ID, formatted as an ISNI (International Standard Name Identifier).
+
+  type:
+    title:       Type
+    type:        string
+    const:       User
+    readOnly:    true
+    description: The type of object. Must be set to `User`.
