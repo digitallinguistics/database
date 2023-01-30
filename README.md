@@ -29,8 +29,9 @@ The `metadata` container contains all other types of database objects. Each item
 
 ### Types of Metadata
 
-- `BibliographicReference`
+- `BibliographicSource`
 - `Language`
 - `Location`
 - `Media`
 - `Person`
+- `User`
