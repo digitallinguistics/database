@@ -1,8 +1,7 @@
 import chunk            from './utilities/chunk.js'
 import { CosmosClient } from '@azure/cosmos'
 import DatabaseResponse from './DatabaseResponse.js'
-import types            from './types.js'
-import validate         from './validate.js'
+import validator        from './validator.js'
 
 // NOTE: Cosmos DB Create methods modify the original object by setting an `id` property on it.
 
@@ -24,7 +23,20 @@ export default class Database {
   /**
    * A Map of database types > containers.
    */
-  types = types
+  types = new Map(Object.entries({
+    BibliographicSource: `metadata`,
+    Language:            `metadata`,
+    Lexeme:              `data`,
+    Person:              `metadata`,
+    Project:             `metadata`,
+    Text:                `data`,
+    User:                `metadata`,
+  }))
+
+  /**
+   * The JSON Schema validator, preloaded with the DaFoDiL schemas.
+   */
+  validator = validator
 
   /**
    * Create a new Database client.
@@ -112,8 +124,16 @@ export default class Database {
    * @returns {Promise<CosmosDBDatabaseResponse>}
    */
   seedOne(container, data = {}) {
-    validate(data)
+
+    const { valid, errors } = this.validate(data)
+
+    if (!valid) {
+      console.error(errors)
+      throw new TypeError(`ValidationError`, { cause: errors })
+    }
+
     return this[container].items.create(data)
+
   }
 
   /**
@@ -122,10 +142,15 @@ export default class Database {
    * @param {Integer} count     The number of copies to add.
    * @param {Object}  [data={}] The data to add.
    * @returns {Promise<Array>}
-   */
+  */
   async seedMany(container, count, data = {}) {
 
-    validate(data)
+    const { valid, errors } = this.validate(data)
+
+    if (!valid) {
+      console.error(errors)
+      throw new TypeError(`ValidationError`, { cause: errors })
+    }
 
     const copy = Object.assign({}, data)
 
@@ -185,7 +210,15 @@ export default class Database {
    */
   async addOne(container, data) {
 
-    validate(data)
+    const { valid, errors } = this.validate(data)
+
+    if (!valid) {
+      return new DatabaseResponse({
+        errors,
+        message: `Validation Error: See 'errors' property for more information.`,
+        status:  422,
+      })
+    }
 
     try {
 
@@ -207,9 +240,27 @@ export default class Database {
    * NOTE: All items must be part of the same partition (data = `language.id`, metadata = `type`).
    * @param {String} container
    * @param {String} partitionKey
-   * @param {Array} [items=[]]
+   * @param {Array}  [items=[]]
    */
   async addMany(container, partitionKey, items = []) {
+
+    if (items instanceof Map) {
+      items = Array.from(items.values())
+    }
+
+    for (const item of items) {
+
+      const { valid, errors } = this.validate(item)
+
+      if (!valid) {
+        return new DatabaseResponse({
+          errors,
+          message: `Validation Error: See 'errors' property for more information.`,
+          status:  422,
+        })
+      }
+
+    }
 
     const operationType = `Create`
 
@@ -229,8 +280,9 @@ export default class Database {
 
       if (response.code === 207) {
         return new DatabaseResponse({
-          data:   response.result,
-          status: 207,
+          data:      response.result,
+          status:    207,
+          substatus: response.substatus,
         })
       }
 
@@ -419,6 +471,37 @@ export default class Database {
     })
 
   }
+
+  /**
+   * Validate a single database object against the DaFoDiL schemas and the extended database schemas.
+   * @param {Object} item A top-level database object to validate.
+   */
+  validate(item) {
+
+    const container = this.types.get(item.type)
+    let   valid     = false
+
+    if (!container) {
+      const e = new TypeError(`Database items require a valid 'type' property.`, { cause: item })
+      return { errors: [e], valid }
+    }
+
+    if (container === `data` && typeof item?.language?.id !== `string`) {
+      const e = new TypeError(`Items in the 'data' container require a 'language.id' property.`, { cause: item })
+      return { errors: [e], valid }
+    }
+
+    const schemaID = `https://schemas.digitallinguistics.io/${ item.type }.json`
+
+    valid = this.validator.validate(schemaID, item)
+
+    return {
+      errors: validator.errors,
+      valid,
+    }
+
+  }
+
 
   // TYPE-SPECIFIC METHODS
 
