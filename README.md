@@ -35,3 +35,10 @@ The `metadata` container contains all other types of database objects. Each item
 - `Media`
 - `Person`
 - `User`
+
+## Releases
+
+Releases are currently manual:
+
+1. `npm version`
+2. `npm publish`
