@@ -1,0 +1,46 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/BibliographicSource.json
+title:       BibliographicSource
+type:        object
+description: An object containing information about a bibliographic source.
+$comment:    This schema overrides DaFoDiL's BibliographicSource schema (but is consistent with it).
+required:
+  - csl
+  - type
+properties:
+
+  bibEntry:
+    title:       Bibliography Entry
+    type:        object
+    description: An object containing information about how to display this bibliographic source in a formatted bibliography. Useful for storing the text/html representations of the entry so that they don't have to be generated every time they are displayed.
+    properties:
+
+      html:
+        type:        string
+        description: The HTML version of the bibliography entry.
+
+      md:
+        type:        string
+        description: The Markdown version of the bibliography entry.
+
+      text:
+        type:        string
+        description: The plain text version of the bibliography entry.
+
+  csl:
+    title:       CSL JSON
+    $ref:        https://resource.citationstyles.org/schema/v1.0/input/json/csl-data.json#/items
+    description: The JSON data for the bibliographic source, in CSL JSON format.
+
+  id:
+    title:       ID
+    type:        string
+    format:      uuid
+    description: The ID for this database item.
+
+  type:
+    title:       Type
+    type:        string
+    const:       BibliographicSource
+    readOnly:    true
+    description: The type of object. Must be set to `BibliographicSource`.
