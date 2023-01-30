@@ -332,6 +332,93 @@ export default class Database {
 
   }
 
+  /**
+   * Upsert a single item to the database.
+   * @param {String} container
+   * @param {Object} data
+   * @returns {Promise<DatabaseResponse>}
+   */
+  async upsertOne(container, data) {
+
+    const { valid, errors } = this.validate(data)
+
+    if (!valid) {
+      return new DatabaseResponse({
+        errors,
+        message: `Validation Error: See 'errors' property for more information.`,
+        status:  422,
+      })
+    }
+
+    const { resource, statusCode } = await this[container].items.upsert(data)
+
+    return new DatabaseResponse({ data: resource, status: statusCode })
+
+  }
+
+  /**
+   * Upsert multiple items to the database.
+   * NOTE: This is a batch operation. It will fail if any individual operations fail.
+   * NOTE: All items must be part of the same partition (data = `language.id`, metadata = `type`).
+   * @param {String} container
+   * @param {String} partitionKey
+   * @param {Array}  [items=[]]
+   */
+  async upsertMany(container, partitionKey, items = []) {
+
+    if (items instanceof Map) {
+      items = Array.from(items.values())
+    }
+
+    for (const item of items) {
+
+      const { valid, errors } = this.validate(item)
+
+      if (!valid) {
+        return new DatabaseResponse({
+          errors,
+          message: `Validation Error: See 'errors' property for more information.`,
+          status:  422,
+        })
+      }
+
+    }
+
+    const operationType = `Upsert`
+
+    const operations = items.map(resourceBody => ({
+      operationType,
+      resourceBody,
+    }))
+
+    const batches = chunk(operations, this.bulkLimit)
+    const results = []
+
+    for (const batch of batches) {
+
+      // NB: In order for `.batch()` to work, add a partition key to each item (`language.id` or `type`),
+      // and provide the *value* of the partition key as the 2nd argument to `batch()`.
+      const response = await this[container].items.batch(batch, partitionKey)
+
+      if (response.code === 207) {
+        return new DatabaseResponse({
+          data:   response.result,
+          status: 207,
+        })
+      }
+
+      results.push(...response.result)
+
+    }
+
+    const data = results.map(({ resourceBody }) => resourceBody)
+
+    return new DatabaseResponse({
+      data,
+      status: 200,
+    })
+
+  }
 
   // TYPE-SPECIFIC METHODS
 
@@ -476,7 +563,7 @@ export default class Database {
    * @returns {Promise<DatabaseResponse>}
    */
   getReference(id) {
-    return this.getOne(`metadata`, `BibliographicReference`, id)
+    return this.getOne(`metadata`, `BibliographicSource`, id)
   }
 
   /**
@@ -485,7 +572,7 @@ export default class Database {
    */
   async getReferences() {
 
-    const query = `SELECT * FROM metadata WHERE metadata.type = 'BibliographicReference'`
+    const query = `SELECT * FROM metadata WHERE metadata.type = 'BibliographicSource'`
 
     const queryIterator = this.metadata.items.query(query).getAsyncIterator()
     const data          = []

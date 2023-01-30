@@ -7,7 +7,7 @@ import { expect }     from 'chai'
 import { randomUUID } from 'crypto'
 
 import {
-  BibliographicReference,
+  BibliographicSource,
   Language,
   Lexeme,
   Permissions,
@@ -81,7 +81,19 @@ describe(`Database`, function() {
 
     })
 
-    it(`422 Unprocessable`)
+    it(`422 Unprocessable`, async function() {
+
+      const lexeme = { id: randomUUID() }
+
+      const { data, errors: [error], message, status } = await db.addOne(`data`, lexeme)
+
+      expect(data).to.be.undefined
+      expect(message).to.include(`Validation Error`)
+      expect(error.message).to.include(`type`)
+      expect(error.cause).to.equal(lexeme)
+      expect(status).to.equal(422)
+
+    })
 
   })
 
@@ -122,7 +134,20 @@ describe(`Database`, function() {
 
     })
 
-    it(`422 Unprocessable`)
+    it(`422 Unprocessable`, async function() {
+
+      const lexemeA = new Lexeme({ language: { id: randomUUID() } })
+      const lexemeB = { id: randomUUID() }
+
+      const { data, errors: [error], message, status } = await db.addMany(`data`, `Lexeme`, [lexemeA, lexemeB])
+
+      expect(data).to.be.undefined
+      expect(message).to.include(`Validation Error`)
+      expect(error.message).to.include(`type`)
+      expect(error.cause).to.equal(lexemeB)
+      expect(status).to.equal(422)
+
+    })
 
   })
 
@@ -358,6 +383,155 @@ describe(`Database`, function() {
         expect(item.status).to.equal(200)
         expect(ids).to.include(item.data.id)
       }
+
+    })
+
+  })
+
+  describe(`upsertOne`, function() {
+
+    it(`200 OK`, async function() {
+
+      const oldVariable = randomUUID()
+      const newVariable = randomUUID()
+
+      const { resource: language } = await db.seedOne(`metadata`, new Language({ test: oldVariable }))
+
+      language.test = newVariable
+
+      const { data, status } = await db.upsertOne(`metadata`, language)
+
+      expect(status).to.equal(200)
+      expect(data.test).to.equal(newVariable)
+
+    })
+
+    it(`422 Unprocessable`, async function() {
+
+      const { resource: language } = await db.seedOne(`metadata`, new Language)
+
+      delete language.type
+
+      const { data, errors: [error], message, status } = await db.upsertOne(`metadata`, language)
+
+      expect(data).to.be.undefined
+      expect(status).to.equal(422)
+      expect(message).to.include(`Validation Error`)
+      expect(error.message).to.include(`type`)
+      expect(error.cause).to.equal(language)
+
+    })
+
+  })
+
+  describe(`upsertMany`, function() {
+
+    it(`200 OK`, async function() {
+
+      const count    = 3
+      const response = await db.seedMany(`metadata`, count, new Language)
+      const items    = response.map(({ resourceBody }) => resourceBody)
+
+      items.forEach((item, i) => { item.index = i })
+
+      const { data, status } = await db.upsertMany(`metadata`, `Language`, items)
+
+      expect(status).to.equal(200)
+      expect(data).to.have.length(3)
+
+      for (const item of items) {
+        expect(item.index).to.be.within(0, 2)
+      }
+
+    })
+
+    it(`422 Unprocessable`, async function() {
+
+      const count    = 3
+      const response = await db.seedMany(`metadata`, count, new Language)
+      const items    = response.map(({ resourceBody }) => resourceBody)
+
+      items.forEach((item, i) => { item.index = i })
+
+      const testItem = items[1]
+
+      delete testItem.type
+
+      const { data, errors: [error], message, status } = await db.upsertMany(`metadata`, count, items)
+
+      expect(status).to.equal(422)
+      expect(data).to.be.undefined
+      expect(message).to.include(`Validation Error`)
+      expect(error.message).to.include(`type`)
+      expect(error.cause).to.equal(testItem)
+
+    })
+
+  })
+
+  describe(`validate`, function() {
+
+    it(`bad type`, function() {
+
+      const item = {}
+      const { valid, errors: [error] } = db.validate(item)
+
+      expect(valid).to.be.false
+      expect(error.message).to.include(`type`)
+      expect(error.cause).to.equal(item)
+
+    })
+
+    it(`missing partition key`, function() {
+
+      const item = { type: `Lexeme` }
+      const { valid, errors: [error] } = db.validate(item)
+
+      expect(valid).to.be.false
+      expect(error.message).to.include(`language.id`)
+      expect(error.cause).to.equal(item)
+
+    })
+
+    it(`invalid (DaFoDiL schema)`, function() {
+
+      const lexeme = new Lexeme({
+        language: {
+          id: randomUUID(),
+        },
+        lemma: true,
+      })
+
+      const { valid, errors: [error] } = db.validate(lexeme)
+
+      expect(valid).to.be.false
+      expect(error.instancePath).to.equal(`/lemma`)
+      expect(error.message).to.equal(`must be object`)
+
+    })
+
+    it(`invalid (database schema)`, function() {
+
+      const project = new Project()
+      delete project.permissions
+
+      const { valid, errors: [error] } = db.validate(project)
+
+      expect(valid).to.be.false
+      expect(error.params.missingProperty).to.equal(`permissions`)
+      expect(error.message).to.include(`permissions`)
+
+    })
+
+    it(`valid`, function() {
+
+      const language = { id: randomUUID() }
+      const lexeme   = new Lexeme({ language })
+
+      const { valid, errors } = db.validate(lexeme)
+
+      expect(valid).to.be.true
+      expect(errors).to.be.null
 
     })
 
@@ -735,17 +909,28 @@ describe(`Database`, function() {
 
   })
 
+  const bibData = {
+    bibEntry: {
+      text: `Hieber, Daniel W. 2023. Word classes.`,
+    },
+    csl: {
+      id:   `Hieber2023`,
+      type: `chapter`,
+    },
+  }
+
   describe(`getReference`, function() {
 
     const container = `metadata`
 
     it(`200 OK`, async function() {
 
-      const { resource: reference } = await db.seedOne(container, new BibliographicReference({ test: randomUUID() }))
-      const { data, status }        = await db.getReference(reference.id)
+      const { resource: reference }  = await db.seedOne(container, new BibliographicSource(bibData))
+      const { data, errors, status } = await db.getReference(reference.id)
 
       expect(status).to.equal(200)
-      expect(data.test).to.equal(reference.test)
+      expect(data.bibEntry.text).to.equal(bibData.bibEntry.text)
+      expect(errors).to.be.undefined
 
     })
 
@@ -768,7 +953,8 @@ describe(`Database`, function() {
 
       const count = 3
 
-      await db.seedMany(container, count, new BibliographicReference)
+
+      await db.seedMany(container, count, new BibliographicSource(bibData))
 
       const { data, status } = await db.getReferences()
 
@@ -781,7 +967,7 @@ describe(`Database`, function() {
 
       const count = 200
 
-      await db.seedMany(container, count, new BibliographicReference)
+      await db.seedMany(container, count, new BibliographicSource(bibData))
 
       const { data, status } = await db.getReferences()
 
