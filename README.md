@@ -70,4 +70,6 @@ It is up to software implementations to impose any type of consistency of permis
 Releases are currently manual:
 
 1. `npm version`
-2. `npm publish`
+2. Push to version control.
+3. Create a [GitHub release](https://github.com/digitallinguistics/database/releases).
+4. GitHub Actions automatically publishes the release to npm.
