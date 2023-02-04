@@ -10,16 +10,39 @@ env:
   NODE_TLS_REJECT_UNAUTHORIZED: 0
 
 jobs:
+
   publish:
-    runs-on: ubuntu-latest
+    name:    publish to npm
+    runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: set up Node
+        uses: actions/setup-node@v3
         with:
-          node-version: 16
-          registry-url: https://registry.npmjs.org/
-      - run: npm ci
-      - run: npm test
+          node-version: 18
+
+      - name: cache Node.js modules
+        id:   cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ hashFiles('**/package-lock.json') }}
+
+      - name: install dependencies
+        run:  npm ci
+
+      - name: run stop-only test
+        run:  npm run stop-only
+
+      - name: start database
+        run:  npm run start-db
+
+      - name: run tests
+        run:  npm test
+
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
