@@ -1,0 +1,23 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/DatabaseLexeme.json
+name:        Database Lexeme
+type:        object
+description: An extension of the Lexeme schema with properties specific to the Digitalis infrastructure.
+allOf:
+  - $ref: https://schemas.digitallinguistics.io/Lexeme.json
+required:
+  - language
+  - projects
+  - type
+properties:
+
+    projects:
+      title:       Projects (Database References)
+      type:        array
+      description: The list of projects this lexeme is included in.
+      items:
+        $ref: https://schemas.digitallinguistics.io/DatabaseReference.json
+
+    statuses:
+      title: Statuses
+      $ref:  https://schemas.digitallinguistics.io/Statuses.json

@@ -17,6 +17,7 @@ import {
 
 const teardown = true
 
+const admin    = `admin@digitallinguistics.io`
 const badID    = `abc123`
 const dbName   = `test`
 const endpoint = process.env.COSMOS_ENDPOINT
@@ -195,36 +196,38 @@ describe(`Database`, function() {
 
     })
 
-    it(`option: project (data container - not optimized)`, async function() {
+    it(`option: project (data container - cross-partition)`, async function() {
 
       const seedCount = 3
-      const language  = randomUUID()
-      const project   = randomUUID()
 
-      const lexemeA = new Lexeme({
-        language: {
-          id: language,
-        },
+      const language = new Language({
+        id: randomUUID(),
       })
 
-      const lexemeB = new Lexeme({
-        language: {
-          id: language,
-        },
-        projects: [{ id: project }],
+      const project = new Project({
+        id: randomUUID(),
       })
 
-      await db.seedMany(`data`, seedCount, lexemeA)
-      await db.seedMany(`data`, seedCount, lexemeB)
+      const projectLexeme = new Lexeme({
+        language: language.getReference(),
+        projects: [project.getReference()],
+      })
 
-      const { data: { count }, status } = await db.count(`Lexeme`, { project })
+      const otherLexeme = new Lexeme({
+        language: language.getReference(),
+      })
+
+      await db.seedMany(`data`, seedCount, projectLexeme)
+      await db.seedMany(`data`, seedCount, otherLexeme)
+
+      const { data: { count }, status } = await db.count(`Lexeme`, { project: project.id })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
 
     })
 
-    it(`option: project (metadata container - optimized)`, async function() {
+    it(`option: project (metadata container - single partition)`, async function() {
 
       const seedCount = 3
       const project   = randomUUID()
@@ -565,12 +568,14 @@ describe(`Database`, function() {
 
   describe(`getLanguages`, function() {
 
+    const container = `metadata`
+
     it(`200 OK`, async function() {
 
       const count = 3
 
-      await db.seedMany(`metadata`, count, new Language)
-      await db.seedMany(`metadata`, count, new Project)
+      await db.seedMany(container, count, new Language)
+      await db.seedMany(container, count, new Project)
 
       const { data, status } = await db.getLanguages()
 
@@ -583,7 +588,7 @@ describe(`Database`, function() {
 
       const count = 200
 
-      await db.seedMany(`metadata`, count, new Language)
+      await db.seedMany(container, count, new Language)
 
       const { data, status } = await db.getLanguages()
 
@@ -592,11 +597,33 @@ describe(`Database`, function() {
 
     })
 
+    it(`option: permissions`, async function() {
+
+      const count = 3
+
+      const publicLanguage = new Language
+
+      const userLanguage = new Language({
+        permissions: new Permissions({
+          admins: [admin],
+          public: false,
+        }),
+      })
+
+      await db.seedMany(container, count, publicLanguage.data)
+      await db.seedMany(container, count, userLanguage.data)
+
+      const { data, status } = await db.getLanguages({ permissions: admin })
+
+      expect(status).to.equal(200)
+      expect(data).to.have.length(count)
+
+    })
+
     it(`option: project`, async function() {
 
-      const count     = 3
-      const container = `metadata`
-      const project   = { id: randomUUID() }
+      const count   = 3
+      const project = { id: randomUUID() }
 
       const language = new Language({
         projects: [project],
@@ -610,6 +637,64 @@ describe(`Database`, function() {
       expect(status).to.equal(200)
       expect(data).to.have.length(count)
       expect(data.every(lang => lang.projects.find(proj => proj.id === project.id))).to.exist
+
+    })
+
+    it(`option: public`, async function() {
+
+      const count = 3
+
+      const publicLanguage = new Language({
+        name: {
+          eng: `Public Language`,
+        },
+      })
+
+      const privateLanguage = new Language({
+        name: {
+          eng: `Private Language`,
+        },
+        permissions: new Permissions({
+          public: false,
+        }),
+      })
+
+      await db.seedMany(container, count, publicLanguage.data)
+      await db.seedMany(container, count, privateLanguage.data)
+
+      const { data, status } = await db.getLanguages({ public: true })
+
+      expect(status).to.equal(200)
+      expect(data).to.have.length(count)
+
+    })
+
+    it(`option: user`, async function() {
+
+      const count          = 3
+      const publicLanguage = new Language
+
+      const privateLanguage = new Language({
+        permissions: new Permissions({
+          public: false,
+        }),
+      })
+
+      const userLanguage = new Language({
+        permissions: new Permissions({
+          admins: [admin],
+          public: false,
+        }),
+      })
+
+      await db.seedMany(container, count, publicLanguage.data)
+      await db.seedMany(container, count, privateLanguage.data)
+      await db.seedMany(container, count, userLanguage.data)
+
+      const { data, status } = await db.getLanguages({ user: admin })
+
+      expect(status).to.equal(200)
+      expect(data).to.have.length(count * 2)
 
     })
 
@@ -888,10 +973,9 @@ describe(`Database`, function() {
     it(`option: user`, async function() {
 
       const count = 3
-      const owner = `owner@digitallinguistics.io`
 
       await db.seedMany(container, count, new Project({
-        permissions: new Permissions({ owners: [owner] }),
+        permissions: new Permissions({ admins: [admin] }),
       }))
 
       await db.seedMany(container, count, new Project({
@@ -900,7 +984,7 @@ describe(`Database`, function() {
         }),
       }))
 
-      const { data, status } = await db.getProjects({ user: owner })
+      const { data, status } = await db.getProjects({ user: admin })
 
       expect(status).to.equal(200)
       expect(data).to.have.length(count)

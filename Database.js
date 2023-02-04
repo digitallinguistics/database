@@ -21,6 +21,19 @@ export default class Database {
   client
 
   /**
+   * A Map of types > database types.
+   */
+  dbTypes = new Map(Object.entries({
+    // Do not include BibliographicSource. It's an override rather than an extension.
+    Bundle:   `DatabaseBundle`,
+    Language: `DatabaseLanguage`,
+    Lexeme:   `DatabaseLexeme`,
+    // Do not include Project. It's a Digitalis-specific schema that doesn't need an extension.
+    Text:     `DatabaseText`,
+    // Do not include User. It's a Digitalis-specific schema that doesn't need an extension.
+  }))
+
+  /**
    * A Map of database types > containers.
    */
   types = new Map(Object.entries({
@@ -128,6 +141,7 @@ export default class Database {
     const { valid, errors } = this.validate(data)
 
     if (!valid) {
+      console.error(data)
       console.error(errors)
       throw new TypeError(`ValidationError`, { cause: errors })
     }
@@ -148,6 +162,7 @@ export default class Database {
     const { valid, errors } = this.validate(data)
 
     if (!valid) {
+      console.error(data)
       console.error(errors)
       throw new TypeError(`ValidationError`, { cause: errors })
     }
@@ -314,6 +329,14 @@ export default class Database {
 
     const container             = this.types.get(type)
     const { language, project } = options
+
+    if (language && typeof language !== `string`) {
+      throw new Error(`The "language" option must be a string.`)
+    }
+
+    if (project && typeof project !== `string`) {
+      throw new Error(`The "project" option must be a string.`)
+    }
 
     let query = `SELECT COUNT(${ container }) FROM ${ container } WHERE ${ container }.type = '${ type }'`
 
@@ -491,7 +514,9 @@ export default class Database {
       return { errors: [e], valid }
     }
 
-    const schemaID = `https://schemas.digitallinguistics.io/${ item.type }.json`
+    // Make sure to use the extended Digitalis database schemas where appropriate.
+    const schemaType = this.dbTypes.get(item.type) ?? item.type
+    const schemaID   = `https://schemas.digitallinguistics.io/${ schemaType }.json`
 
     valid = this.validator.validate(schemaID, item)
 
@@ -516,21 +541,58 @@ export default class Database {
 
   /**
    * Get multiple languages from the database.
-   * @param {Object} [options={}]      An options hash.
-   * @param {String} [options.project] The ID of a project to return languages for.
+   * @param {Object}  [options={}]           An options hash.
+   * @param {String}  [options.permissions]  The ID of the user to return languages for. Returns only languages the user has explicit permissions to access.
+   * @param {String}  [options.project]      The ID of a project to return languages for.
+   * @param {Boolean} [options.public=false] Whether to return only languages that are part of a public project.
+   * @param {String}  [options.user]         The ID of the user to return languages for. Returns all languages that the user can view.
    * @returns {Promise<DatabaseResponse>}
    */
-  async getLanguages(options = {}) {
-
-    const { project } = options
+  async getLanguages({
+    permissions,
+    project,
+    public: publicOnly,
+    user,
+  } = {}) {
 
     let query = `SELECT * FROM metadata WHERE metadata.type = 'Language'`
+
+    // NOTE: These EXISTS subqueries are checking for languages
+    // whose *embedded* project has the specified properties.
+    // They are *not* acting like a JOIN query.
+    // Cosmos DB doesn't allow joins across items, only within an item.
+
+    if (permissions) {
+      query += ` AND (
+        ARRAY_CONTAINS(metadata.permissions.admins, '${ permissions }')
+        OR
+        ARRAY_CONTAINS(metadata.permissions.editors, '${ permissions }')
+        OR
+        ARRAY_CONTAINS(metadata.permissions.viewers, '${ permissions }')
+      )`
+    }
 
     if (project) {
       query += ` AND EXISTS(
         SELECT VALUE project
         FROM project IN metadata.projects
         WHERE project.id = '${ project }'
+      )`
+    }
+
+    if (publicOnly) {
+      query += ` AND metadata.permissions.public = true`
+    }
+
+    if (user) {
+      query += ` AND (
+        metadata.permissions.public = true
+        OR
+        ARRAY_CONTAINS(metadata.permissions.admins, '${ user }')
+        OR
+        ARRAY_CONTAINS(metadata.permissions.editors, '${ user }')
+        OR
+        ARRAY_CONTAINS(metadata.permissions.viewers, '${ user }')
       )`
     }
 
@@ -615,7 +677,7 @@ export default class Database {
         query += ` AND (
           metadata.permissions.public = true
           OR
-          ARRAY_CONTAINS(metadata.permissions.owners, '${ options.user }')
+          ARRAY_CONTAINS(metadata.permissions.admins, '${ options.user }')
           OR
           ARRAY_CONTAINS(metadata.permissions.editors, '${ options.user }')
           OR

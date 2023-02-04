@@ -36,6 +36,35 @@ The `metadata` container contains all other types of database objects. Each item
 - `Person`
 - `User`
 
+## Permissions
+
+There are 4 types of permissions:
+
+- `public`: Any user may view the resource.
+- `viewer`: The user may view the resource, even when not public.
+- `editor`: The user may edit but not delete the resource.
+- `admin`: The user may edit and delete the resource, or set permissions for it.
+
+Objects which have permissions:
+
+- Bundle
+- Language
+- Note (`public` only)
+- Project
+- Status (`public` only)
+
+Permissions on one resource do *not* imply certain permissions on another permissioned resource. There is no hierarchy of permissions between Projects and Languages. If a Project is publicly viewable, its languages may not be, and vice versa.
+
+Permissions for other items *are* determined by their parent item, because they are only ever viewable in the context of that parent item. This *may* result in, for example, a single Lexeme being viewable using one filter but not another. The user may have permission to view a Project's info but not a Language's info, so the user could view that Lexeme in the context of the Project but not in the context of the Language.
+
+Items which get their permissions from their parent items:
+
+- Lexeme
+- Person
+- Text
+
+It is up to software implementations to impose any type of consistency of permissions between Languages and Projects.
+
 ## Releases
 
 Releases are currently manual:

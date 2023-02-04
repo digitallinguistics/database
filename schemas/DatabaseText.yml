@@ -1,0 +1,23 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/DatabaseText.json
+name:        Database Text
+type:        object
+description: An extension of the Text schema with properties specific to the Digitalis infrastructure.
+allOf:
+  - $ref: https://schemas.digitallinguistics.io/Text.json
+required:
+  - language
+  - projects
+  - type
+properties:
+
+    projects:
+      title:       Projects (Database References)
+      type:        array
+      description: The list of projects this lexeme is included in.
+      items:
+        $ref: https://schemas.digitallinguistics.io/DatabaseReference.json
+
+    statuses:
+      title: Statuses
+      $ref:  https://schemas.digitallinguistics.io/Statuses.json

@@ -1,0 +1,102 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/Statuses.json
+name:        Statuses
+type:        object
+description: An object containing information about a status checklist/workflow, and optionally the status of the parent item in that checklist/workflow. This format is used both to describe status checklists/workflows (listed on Projects) and the particular status of items in that workflow (listed on Lexemes or Texts). The keys in this object are arbitrary keys used to reference a given checklist/workflow.
+
+additionalProperties:
+  title:       Status Checklist / Workflow
+  type:        object
+  description: An object describing a status checklist or workflow and its members.
+  required:
+    - name
+    - statuses
+    - statusType
+  properties:
+
+    history:
+      title:       History
+      type:        array
+      description: A list of the status changes that have been made for this status checklist/workflow. This property only applies to individual items (Lexeme, Text).
+      items:
+        title:       Status Change
+        type:        object
+        description: A record of a status change.
+        required:
+          - date
+          - status
+          - user
+          - value
+        properties:
+
+          status:
+            title:       Status key
+            type:        string
+            description: The key for the status that changed. This must match one of the keys in the `statuses` property.
+
+          timestamp:
+            title:       Date
+            type:        string
+            format:      date-time
+            description: A timestamp representing the time when this status changed.
+
+          user:
+            title:       User (Database Reference)
+            $ref:        https://schemas.digitallinguistics.io/DatabaseReference.json
+            description: The user that changed the status.
+
+          value:
+            title:       Value
+            type:        boolean
+            description: The new value that the status was changed to.
+
+    name:
+      title:       Name
+      $ref:        https://schemas.digitallinguistics.io/MultiLangString.json
+      description: The name of the checklist/workflow.
+
+    project:
+      title:       Project (Database Reference)
+      $ref:        https://schemas.digitallinguistics.io/DatabaseReference.json
+      description: The project that this status checklist/workflow is used in.
+
+    public:
+      title:       Public
+      type:        boolean
+      default:     false
+      description: Whether this status checklist/workflow should be publicly visible. Defaults to false.
+
+    statuses:
+      title:       Statuses
+      type:        object
+      description: A hash of items in the checklist/workflow, each given an arbitrary key.
+      additionalProperties:
+
+        done:
+          title:       Done
+          type:        boolean
+          description: Whether this item in the checklist/workflow is complete.
+
+        lastModified:
+          title:       Last Modified
+          type:        string
+          format:      date-time
+          description: A timestamp representing the time this status was last modified.
+
+        name:
+          title:       Name
+          $ref:        https://schemas.digitallinguistics.io/MultiLangString.json
+          description: The name of this item in the checklist/workflow.
+
+        user:
+          title:       User (Database Reference)
+          $ref:        https://schemas.digitallinguistics.io/DatabaseReference.json
+          description: The user who last changed this status.
+
+    statusType:
+      title:       Status Type
+      type:        string
+      description: The type of checklist/workflow. Must be either `'checklist'` or `'sequence'`.
+      enum:
+        - checklist
+        - sequence

@@ -1,0 +1,22 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/DatabaseBundle.json
+name:        Database Bundle
+type:        object
+description: An extension of the Bundle schema with properties specific to the Digitalis infrastructure.
+allOf:
+  - $ref: https://schemas.digitallinguistics.io/Bundle.json
+required:
+  - permissions
+  - type
+properties:
+
+  permissions:
+    title: Permissions
+    $ref:  https://schemas.digitallinguistics.io/Permissions.json
+
+  projects:
+    title:       Projects (Database References)
+    type:        array
+    description: The list of projects this bundle is included in.
+    items:
+      $ref: https://schemas.digitallinguistics.io/DatabaseReference.json

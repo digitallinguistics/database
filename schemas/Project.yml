@@ -8,6 +8,26 @@ required:
   - type
 properties:
 
+  analysisLanguages:
+    title:       Analysis Languages
+    type:        array
+    description: A list of analysis languages used by this project.
+    items:
+      $ref: https://schemas.digitallinguistics.io/LanguageTag.json
+
+  dateCreated:
+    title:       Date Created
+    description: The date this project was created.
+
+  dateModified:
+    title:       Date Modified
+    description: The date this project was last modified.
+
+  defaultAnalysisLanguage:
+    title:       Default Analysis Language
+    $ref:        https://schemas.digitallinguistics.io/LanguageTag.json
+    description: The default analysis language to use when displaying data for this project.
+
   id:
     title:       ID
     type:        string
@@ -23,6 +43,11 @@ properties:
     title:       Permissions
     $ref:        https://schemas.digitallinguistics.io/Permissions.json
     description: A permissions object.
+
+  statuses:
+    title:       Statuses
+    $ref:        https://schemas.digitallinguistics.io/Statuses.json
+    description: A set of checklists/workflows used in this project.
 
   type:
     title:       Type

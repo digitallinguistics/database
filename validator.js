@@ -16,7 +16,7 @@ addFormats(validator, [`date`, `date-time`, `email`, `uri`, `uuid`])
 validator.addFormat(`isni`, isni.validate)
 
 // Add database-specific schemas.
-// Note: This overrides DaFoDiL schemas with the same name.
+// CAUTION: This overrides any DaFoDiL schemas that have the same name.
 for (const [type, schema] of Object.entries(dbSchemas)) {
   dlxSchemas[type] = schema
 }
@@ -25,6 +25,5 @@ for (const [type, schema] of Object.entries(dbSchemas)) {
 for (const schema of Object.values(dlxSchemas)) {
   validator.addSchema(schema)
 }
-
 
 export default validator

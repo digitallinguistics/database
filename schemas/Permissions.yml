@@ -4,16 +4,16 @@ name:        Permissions
 type:        object
 description: An object containing information about user permissions for a database item.
 required:
-  - owners
+  - admins
   - editors
   - viewers
   - public
 properties:
 
-  owners:
-    name:        Owners
+  admins:
+    name:        Administrators
     type:        array
-    description: IDs of users who have admin permissions for this object.
+    description: IDs of users who have administrator permissions for this object.
     items:
       type: string
 
