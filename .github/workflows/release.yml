@@ -24,6 +24,10 @@ jobs:
         with:
           node-version: 18
 
+      # Start the database as early as possible.
+      - name: start database
+        run:  npm run start-db
+
       - name: cache Node.js modules
         id:   cache
         uses: actions/cache@v3
@@ -36,9 +40,6 @@ jobs:
 
       - name: run stop-only test
         run:  npm run stop-only
-
-      - name: start database
-        run:  npm run start-db
 
       - name: run tests
         run:  npm test
