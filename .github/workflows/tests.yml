@@ -24,14 +24,15 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
 
+      - name:  downgrade to Cosmos DB Emulator v2.14.9
+        run:   |
+          ./downgrade.ps1
+        shell: pwsh
+
       - name: set up Node
         uses: actions/setup-node@v3
         with:
           node-version: 18
-
-      # Start the database as early as possible.
-      - name: start database
-        run:  npm run start-db
 
       - name: cache Node.js modules
         id:   cache
@@ -45,6 +46,9 @@ jobs:
 
       - name: run stop-only test
         run:  npm run stop-only
+
+      - name: start database
+        run:  npm run start-db
 
       - name: run tests
         run:  npm test
