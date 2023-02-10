@@ -55,8 +55,10 @@ describe(`Database`, function() {
 
       const testVariable = randomUUID()
 
+      const language = new Language({ id: randomUUID() })
+
       const { data, status } = await db.addOne(`data`, new Lexeme({
-        language: { id: randomUUID() },
+        language: language.getReference(),
         testVariable,
       }))
 
@@ -67,9 +69,11 @@ describe(`Database`, function() {
 
     it(`409 Conflict`, async function() {
 
+      const language = new Language({ id: randomUUID() })
+
       const lexeme = new Lexeme({
         id:       randomUUID(),
-        language: { id: randomUUID() },
+        language: language.getReference(),
       })
 
       await db.addOne(`data`, lexeme)
@@ -102,12 +106,12 @@ describe(`Database`, function() {
 
     it(`201 OK`, async function() {
 
-      const language = { id: randomUUID() }
+      const language = new Language({ id: randomUUID() })
 
       const items = [
-        new Lexeme({ language }),
-        new Lexeme({ language }),
-        new Lexeme({ language }),
+        new Lexeme({ language: language.getReference() }),
+        new Lexeme({ language: language.getReference() }),
+        new Lexeme({ language: language.getReference() }),
       ]
 
       const { data, status } = await db.addMany(`data`, language.id, items)
@@ -119,12 +123,12 @@ describe(`Database`, function() {
 
     it(`207 Multi-Status`, async function() {
 
-      const language = { id: randomUUID() }
+      const language = new Language({ id: randomUUID() })
       const id       = randomUUID()
 
       const items = [
-        new Lexeme({ id, language }),
-        new Lexeme({ id, language }),
+        new Lexeme({ id, language: language.getReference() }),
+        new Lexeme({ id, language: language.getReference() }),
       ]
 
       const { data, status } = await db.addMany(`data`, language.id, items)
@@ -137,7 +141,9 @@ describe(`Database`, function() {
 
     it(`422 Unprocessable`, async function() {
 
-      const lexemeA = new Lexeme({ language: { id: randomUUID() } })
+      const language = new Language({ id: randomUUID() })
+
+      const lexemeA = new Lexeme({ language: language.getReference() })
       const lexemeB = { id: randomUUID() }
 
       const { data, errors: [error], message, status } = await db.addMany(`data`, `Lexeme`, [lexemeA, lexemeB])
@@ -158,10 +164,10 @@ describe(`Database`, function() {
 
       const seedCount = 3
 
+      const language = new Language({ id: randomUUID() })
+
       await db.seedMany(`data`, seedCount, new Lexeme({
-        language: {
-          id: randomUUID(),
-        },
+        language: language.getReference(),
       }))
 
       const { data: { count }, status } = await db.count(`Lexeme`)
@@ -175,21 +181,21 @@ describe(`Database`, function() {
 
       const seedCount = 3
 
-      const languageA = randomUUID()
-      const languageB = randomUUID()
+      const languageA = new Language({ id: randomUUID() })
+      const languageB = new Language({ id: randomUUID() })
 
       const lexemeA = new Lexeme({
-        language: { id: languageA },
+        language: languageA.getReference(),
       })
 
       const lexemeB = new Lexeme({
-        language: { id: languageB },
+        language: languageB.getReference(),
       })
 
       await db.seedMany(`data`, seedCount, lexemeA)
       await db.seedMany(`data`, seedCount, lexemeB)
 
-      const { data: { count }, status } = await db.count(`Lexeme`, { language: languageA })
+      const { data: { count }, status } = await db.count(`Lexeme`, { language: languageA.id })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -230,20 +236,21 @@ describe(`Database`, function() {
     it(`option: project (metadata container - single partition)`, async function() {
 
       const seedCount = 3
-      const project   = randomUUID()
+
+      const projectID = randomUUID()
 
       const languageA = new Language({
-        projects: [{ id: project }],
+        projects: [{ id: projectID, name: {} }],
       })
 
       const languageB = new Language({
-        projects: [{ id: randomUUID() }],
+        projects: [{ id: randomUUID(), name: {} }],
       })
 
       await db.seedMany(`metadata`, seedCount, languageA)
       await db.seedMany(`metadata`, seedCount, languageB)
 
-      const { data: { count }, status } = await db.count(`Language`, { project })
+      const { data: { count }, status } = await db.count(`Language`, { project: projectID })
 
       expect(status).to.equal(200)
       expect(count).to.equal(seedCount)
@@ -261,8 +268,8 @@ describe(`Database`, function() {
       // add lexemes with language + project
 
       const lexemeA = new Lexeme({
-        language: { id: languageA },
-        projects: [{ id: projectA }],
+        language: { id: languageA, name: {} },
+        projects: [{ id: projectA, name: {} }],
       })
 
       await db.seedMany(`data`, seedCount, lexemeA)
@@ -270,8 +277,8 @@ describe(`Database`, function() {
       // add lexemes with language but different project
 
       const lexemeB = new Lexeme({
-        language: { id: languageA },
-        projects: [{ id: projectB }],
+        language: { id: languageA, name: {} },
+        projects: [{ id: projectB, name: {} }],
       })
 
       await db.seedMany(`data`, seedCount, lexemeB)
@@ -279,8 +286,8 @@ describe(`Database`, function() {
       // add lexemes with project but different language
 
       const lexemeC = new Lexeme({
-        language: { id: languageB },
-        projects: [{ id: projectA }],
+        language: { id: languageB, name: {} },
+        projects: [{ id: projectA, name: {} }],
       })
 
       await db.seedMany(`data`, seedCount, lexemeC)
@@ -330,7 +337,8 @@ describe(`Database`, function() {
     it(`200 OK`, async function() {
 
       const count            = 3
-      const lexeme           = new Lexeme({ language: { id: randomUUID() } })
+      const language         = new Language({ id: randomUUID() })
+      const lexeme           = new Lexeme({ language: language.getReference() })
       const seedData         = await db.seedMany(container, count, lexeme)
       const ids              = seedData.map(({ resourceBody }) => resourceBody.id)
       const { data, status } = await db.getMany(container, lexeme.language.id, ids)
@@ -358,13 +366,11 @@ describe(`Database`, function() {
 
     it(`missing results`, async function() {
 
-      const count      = 3
-      const languageID = randomUUID()
+      const count    = 3
+      const language = new Language({ id: randomUUID() })
 
       const lexeme = new Lexeme({
-        language: {
-          id: languageID,
-        },
+        language: language.getReference(),
       })
 
       const seedData = await db.seedMany(`data`, count, lexeme)
@@ -372,7 +378,7 @@ describe(`Database`, function() {
 
       ids.unshift(badID) // Use unshift here to test that Cosmos DB continues to return results after a 404.
 
-      const { data, status } = await db.getMany(container, languageID, ids)
+      const { data, status } = await db.getMany(container, language.id, ids)
 
       expect(status).to.equal(207)
       expect(data).to.have.length(count + 1)
@@ -528,7 +534,7 @@ describe(`Database`, function() {
 
     it(`valid`, function() {
 
-      const language = { id: randomUUID() }
+      const language = { id: randomUUID(), name: {} }
       const lexeme   = new Lexeme({ language })
 
       const { valid, errors } = db.validate(lexeme)
@@ -623,7 +629,7 @@ describe(`Database`, function() {
     it(`option: project`, async function() {
 
       const count   = 3
-      const project = { id: randomUUID() }
+      const project = { id: randomUUID(), name: {} }
 
       const language = new Language({
         projects: [project],
@@ -706,7 +712,8 @@ describe(`Database`, function() {
 
       const lexemeData = new Lexeme({
         language: {
-          id: randomUUID(),
+          id:   randomUUID(),
+          name: {},
         },
         test: randomUUID(),
       })
@@ -723,7 +730,8 @@ describe(`Database`, function() {
 
       const lexeme = new Lexeme({
         language: {
-          id: randomUUID(),
+          id:   randomUUID(),
+          name: {},
         },
       })
 
@@ -747,7 +755,7 @@ describe(`Database`, function() {
     it(`200 OK`, async function() {
 
       const count    = 3
-      const language = { id: randomUUID() }
+      const language = { id: randomUUID(), name: {} }
 
       await db.seedMany(container, count, new Lexeme({ language }))
       await db.seedMany(container, count, new Text({ language }))
@@ -765,7 +773,8 @@ describe(`Database`, function() {
 
       const lexeme = new Lexeme({
         language: {
-          id: randomUUID(),
+          id:   randomUUID(),
+          name: {},
         },
       })
 
@@ -788,7 +797,8 @@ describe(`Database`, function() {
 
       const lexemeA = new Lexeme({
         language: {
-          id: languageA,
+          id:   languageA,
+          name: {},
         },
       })
 
@@ -798,7 +808,8 @@ describe(`Database`, function() {
 
       const lexemeB = new Lexeme({
         language: {
-          id: languageB,
+          id:   languageB,
+          name: {},
         },
       })
 
@@ -821,16 +832,16 @@ describe(`Database`, function() {
       // add lexemes with project A
 
       const lexemeA = new Lexeme({
-        language: { id: randomUUID() },
-        projects: [{ id: projectA }],
+        language: { id: randomUUID(), name: {} },
+        projects: [{ id: projectA, name: {} }],
       })
 
       await db.seedMany(container, count, lexemeA)
 
       // add lexemes with project B
       const lexemeB = new Lexeme({
-        language: { id: randomUUID() },
-        projects: [{ id: projectB }],
+        language: { id: randomUUID(), name: {} },
+        projects: [{ id: projectB, name: {} }],
       })
 
       await db.seedMany(container, count, lexemeB)
@@ -854,8 +865,8 @@ describe(`Database`, function() {
       // language A + project A
 
       const lexemeA = new Lexeme({
-        language: { id: languageA },
-        projects: [{ id: projectA }],
+        language: { id: languageA, name: {} },
+        projects: [{ id: projectA, name: {} }],
       })
 
       await db.seedMany(container, count, lexemeA)
@@ -863,8 +874,8 @@ describe(`Database`, function() {
       // language A + project B
 
       const lexemeB = new Lexeme({
-        language: { id: languageA },
-        projects: [{ id: projectB }],
+        language: { id: languageA, name: {} },
+        projects: [{ id: projectB, name: {} }],
       })
 
       await db.seedMany(container, count, lexemeB)
@@ -872,8 +883,8 @@ describe(`Database`, function() {
       // language B + project A
 
       const lexemeC = new Lexeme({
-        language: { id: languageB },
-        projects: [{ id: projectA }],
+        language: { id: languageB, name: {} },
+        projects: [{ id: projectA, name: {} }],
       })
 
       await db.seedMany(container, count, lexemeC)
