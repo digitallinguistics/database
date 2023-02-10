@@ -30,4 +30,4 @@ allOf:
         type:        array
         description: The list of projects this language is included in.
         items:
-          $ref: https://schemas.digitallinguistics.io/DatabaseReference.json
+          $ref: https://schemas.digitallinguistics.io/ProjectReference.json

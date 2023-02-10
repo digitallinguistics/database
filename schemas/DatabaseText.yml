@@ -11,13 +11,17 @@ required:
   - type
 properties:
 
-    projects:
-      title:       Projects (Database References)
-      type:        array
-      description: The list of projects this lexeme is included in.
-      items:
-        $ref: https://schemas.digitallinguistics.io/DatabaseReference.json
+  language:
+    title: Language (Database Reference)
+    $ref:  https://schemas.digitallinguistics.io/LanguageReference.json
 
-    statuses:
-      title: Statuses
-      $ref:  https://schemas.digitallinguistics.io/Statuses.json
+  projects:
+    title:       Projects (Database References)
+    type:        array
+    description: The list of projects this lexeme is included in.
+    items:
+      $ref: https://schemas.digitallinguistics.io/ProjectReference.json
+
+  statuses:
+    title: Statuses
+    $ref:  https://schemas.digitallinguistics.io/Statuses.json

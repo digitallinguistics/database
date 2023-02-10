@@ -1,0 +1,22 @@
+$schema:     http://json-schema.org/draft-07/schema
+$id:         https://schemas.digitallinguistics.io/LanguageReference.json
+name:        Language (Database Reference)
+type:        object
+description: An embedded reference to a Language.
+required:
+  - id
+  - name
+properties:
+
+  defaultAnalysisLanguage:
+    $ref: https://schemas.digitallinguistics.io/LanguageTag.json
+
+  defaultOrthography:
+    type: string
+
+  id:
+    type:   string
+    format: uuid
+
+  name:
+    $ref: https://schemas.digitallinguistics.io/MultiLangString.json
