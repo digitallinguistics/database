@@ -477,8 +477,9 @@ export default class Database {
 
       if (response.code === 207) {
         return new DatabaseResponse({
-          data:   response.result,
-          status: 207,
+          data:      response.result,
+          status:    207,
+          substatus: response.substatus,
         })
       }
 
