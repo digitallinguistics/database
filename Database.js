@@ -1,6 +1,7 @@
 import chunk            from './utilities/chunk.js'
 import { CosmosClient } from '@azure/cosmos'
 import DatabaseResponse from './DatabaseResponse.js'
+import hasTranscription from './scripts/hasTranscription.js'
 import validator        from './validator.js'
 
 // NOTE: Cosmos DB Create methods modify the original object by setting an `id` property on it.
@@ -197,7 +198,7 @@ export default class Database {
   }
 
   /**
-   * Creates the database, container, and stored procedures in Cosmos DB if they don't yet exist.
+   * Creates the database, container, stored procedures, and user-defined functions in Cosmos DB if they don't yet exist.
    * @returns {Promise}
    */
   async setup() {
@@ -206,8 +207,37 @@ export default class Database {
 
     const { database } = await this.client.databases.createIfNotExists({ id: this.dbName })
 
-    await database.containers.createIfNotExists({ id: `data`, partitionKey: `/language/id` })
-    await database.containers.createIfNotExists({ id: `metadata`, partitionKey: `/type` })
+    // Containers
+
+    const { container: data } = await database.containers.createIfNotExists({
+      id:           `data`,
+      partitionKey: `/language/id`,
+    })
+
+    await database.containers.createIfNotExists({
+      id:           `metadata`,
+      partitionKey: `/type`,
+    })
+
+    // Server-Side Scripts
+
+    const hasTxnID     = `hasTxn`
+    const hasTxnScript = data.scripts.userDefinedFunction(hasTxnID)
+
+    try {
+
+      await hasTxnScript.read()
+
+    } catch (error) {
+
+      await data.scripts.userDefinedFunctions.create({
+        body: hasTranscription.toString(),
+        id:   `hasTxn`,
+      }, {
+        enableScriptLogging: true,
+      })
+
+    }
 
     console.info(`Setup complete for the "${ this.dbName }" database.`)
 
