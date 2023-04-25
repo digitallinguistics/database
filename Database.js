@@ -596,10 +596,8 @@ export default class Database {
     if (permissions) {
       query += ` AND (
         ARRAY_CONTAINS(metadata.permissions.admins, '${ permissions }')
-        OR
-        ARRAY_CONTAINS(metadata.permissions.editors, '${ permissions }')
-        OR
-        ARRAY_CONTAINS(metadata.permissions.viewers, '${ permissions }')
+        OR ARRAY_CONTAINS(metadata.permissions.editors, '${ permissions }')
+        OR ARRAY_CONTAINS(metadata.permissions.viewers, '${ permissions }')
       )`
     }
 
@@ -618,12 +616,9 @@ export default class Database {
     if (user) {
       query += ` AND (
         metadata.permissions.public = true
-        OR
-        ARRAY_CONTAINS(metadata.permissions.admins, '${ user }')
-        OR
-        ARRAY_CONTAINS(metadata.permissions.editors, '${ user }')
-        OR
-        ARRAY_CONTAINS(metadata.permissions.viewers, '${ user }')
+        OR ARRAY_CONTAINS(metadata.permissions.admins, '${ user }')
+        OR ARRAY_CONTAINS(metadata.permissions.editors, '${ user }')
+        OR ARRAY_CONTAINS(metadata.permissions.viewers, '${ user }')
       )`
     }
 
@@ -671,7 +666,6 @@ export default class Database {
       )`
     }
 
-
     const queryIterator = this.data.items.query(query).getAsyncIterator()
     const data          = []
 
@@ -707,12 +701,9 @@ export default class Database {
 
         query += ` AND (
           metadata.permissions.public = true
-          OR
-          ARRAY_CONTAINS(metadata.permissions.admins, '${ options.user }')
-          OR
-          ARRAY_CONTAINS(metadata.permissions.editors, '${ options.user }')
-          OR
-          ARRAY_CONTAINS(metadata.permissions.viewers, '${ options.user }')
+          OR ARRAY_CONTAINS(metadata.permissions.admins, '${ options.user }')
+          OR ARRAY_CONTAINS(metadata.permissions.editors, '${ options.user }')
+          OR ARRAY_CONTAINS(metadata.permissions.viewers, '${ options.user }')
         )`
 
       } else {
@@ -751,6 +742,88 @@ export default class Database {
     const query = `SELECT * FROM metadata WHERE metadata.type = 'BibliographicSource'`
 
     const queryIterator = this.metadata.items.query(query).getAsyncIterator()
+    const data          = []
+
+    for await (const result of queryIterator) {
+      data.push(...result.resources)
+    }
+
+    return new DatabaseResponse({ data })
+
+  }
+
+  /**
+   * Perform a quicksearch on lexemes.
+   * @returns {Promise<DatabaseResponse>}
+   */
+  async searchLexemes(searchString, options = {}) {
+
+    const { language, project } = options
+
+    const queryStart   = `SELECT * FROM data WHERE data.type = 'Lexeme'`
+    let   queryOptions = ``
+
+    if (language) queryOptions += ` AND data.language.id = '${ language }'`
+
+    if (project) {
+      queryOptions += ` AND EXISTS(
+        SELECT VALUE project
+        FROM project IN data.projects
+        WHERE project.id = '${ project }'
+      )`
+    }
+
+    // Fields are searched in order of most likely target
+    // (e.g. users are most likely to be searching the lemma, then forms, etc.)
+    const searchOptions = ` AND (
+
+      -- lemma
+      udf.hasTxn(data.lemma.transcription, '${ searchString }')
+
+      -- citation form
+      OR udf.hasTxn(data.citationForm, '${ searchString }')
+
+      -- transcriptions & UR & allomorphs
+      OR EXISTS(
+        SELECT VALUE form
+        FROM form IN data.forms
+        WHERE (
+
+          -- transcription
+          udf.hasTxn(form.transcription, '${ searchString }')
+
+          -- UR
+          OR udf.hasTxn(form.UR, '${ searchString }')
+
+          -- allomorphs
+          OR EXISTS(
+            SELECT VALUE allomorph
+            FROM allomorph IN form.allomorphs
+            WHERE udf.hasTxn(allomorph.transcription, '${ searchString }')
+          )
+        )
+      )
+
+      -- glosses & definitions
+      OR EXISTS(
+        SELECT VALUE sense
+        FROM sense IN data.senses
+        WHERE (
+
+          -- gloss
+          udf.hasTxn(sense.gloss, '${ searchString }')
+
+          -- definition
+          OR udf.hasTxn(sense.definition, '${ searchString }')
+
+        )
+      )
+
+    )`
+
+    const query = queryStart + queryOptions + searchOptions
+
+    const queryIterator = this.data.items.query(query).getAsyncIterator()
     const data          = []
 
     for await (const result of queryIterator) {

@@ -8,10 +8,12 @@ import { randomUUID } from 'crypto'
 
 import {
   BibliographicSource,
+  Form,
   Language,
   Lexeme,
   Permissions,
   Project,
+  Sense,
   Text,
 } from '@digitallinguistics/models'
 
@@ -1109,6 +1111,335 @@ describe(`Database`, function() {
 
         expect(status).to.equal(200)
         expect(data).to.have.length(0)
+
+      })
+
+    })
+
+    describe(`searchLexemes`, function() {
+
+      const container = `data`
+      const language  = new Language({ id: randomUUID() }).getReference()
+
+      it(`lemma`, async function() {
+
+        const text = new Text({ language })
+
+        const target = new Lexeme({
+          language,
+          lemma:    {
+            transcription: {
+              Modern:  `qasi`,
+              Swadesh: `ʔasi`,
+            },
+          },
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          language,
+          lemma: {
+            transcription: {
+              Modern:  `kica`,
+              Swadesh: `kiča`,
+            },
+          },
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+        await db.seedOne(container, text)
+
+        const { data, status } = await db.searchLexemes(`qasi`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`allomorph`, async function() {
+
+        const target = new Lexeme({
+          forms: [
+            new Form({
+              allomorphs: [
+                {
+                  transcription: {
+                    Modern: `qaay`,
+                  },
+                },
+              ],
+            }),
+          ],
+          language,
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          forms: [
+            new Form({
+              allomorphs: [
+                {
+                  transcription: {
+                    Modern: `caad`,
+                  },
+                },
+              ],
+            }),
+          ],
+          language,
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        const { data, status } = await db.searchLexemes(`qaay`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`citation form`, async function() {
+
+        const target = new Lexeme({
+          citationForm: {
+            Modern: `Sitimaxa`,
+          },
+          language,
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          citationForm: {
+            Modern: `Cahta`,
+          },
+          language,
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        const { data, status } = await db.searchLexemes(`Sitimaxa`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`definition`, async function() {
+
+        const target = new Lexeme({
+          language,
+          senses: [
+            new Sense({
+              definition: {
+                en: `a man`,
+              },
+            }),
+          ],
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          language,
+          senses: [
+            new Sense({
+              definition: {
+                en: `a woman`,
+              },
+            }),
+          ],
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        const { data, status } = await db.searchLexemes(`a man`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`form (transcription)`, async function() {
+
+        const target = new Lexeme({
+          forms: [
+            new Form({
+              transcription: {
+                Modern: `qasi`,
+              },
+            }),
+          ],
+          language,
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          forms: [
+            new Form({
+              transcription: {
+                Modern: `kica`,
+              },
+            }),
+          ],
+          language,
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        const { data, status } = await db.searchLexemes(`qasi`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`gloss + multiple results`, async function() {
+
+        const target = new Lexeme({
+          language,
+          senses: [
+            new Sense({
+              gloss: {
+                en: `man`,
+              },
+            }),
+          ],
+        })
+
+        const distractor = new Lexeme({
+          language,
+          senses: [
+            new Sense({
+              gloss: {
+                en: `woman`,
+              },
+            }),
+          ],
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        let { data, status } = await db.searchLexemes(`man`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(2);
+
+        ({ data, status } = await db.searchLexemes(`woman`))
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+
+      })
+
+      it(`UR`, async function() {
+
+        const target = new Lexeme({
+          forms: [
+            new Form({
+              UR: {
+                Modern: `asi`,
+              },
+            }),
+          ],
+          language,
+          target: true,
+        })
+
+        const distractor = new Lexeme({
+          forms: [
+            new Form({
+              UR: {
+                Modern: `kica`,
+              },
+            }),
+          ],
+          language,
+        })
+
+        await db.seedOne(container, target)
+        await db.seedOne(container, distractor)
+
+        const { data, status } = await db.searchLexemes(`asi`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`no results`, async function() {
+
+        const { data, status } = await db.searchLexemes(`test`)
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(0)
+
+      })
+
+      it(`option: language`, async function() {
+
+        const targetLanguage     = new Language({ id: randomUUID() }).getReference()
+        const distractorLanguage = new Language({ id: randomUUID() }).getReference()
+        const lemma              = { transcription: { Modern: `qasi` } }
+
+        const targetLexeme = new Lexeme({
+          language: targetLanguage,
+          lemma,
+          target:   true,
+        })
+
+        const distractorLexeme = new Lexeme({
+          language: distractorLanguage,
+          lemma,
+        })
+
+        await db.seedOne(container, targetLexeme)
+        await db.seedOne(container, distractorLexeme)
+
+        const { data, status } = await db.searchLexemes(`qasi`, { language: targetLanguage.id })
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
+
+      })
+
+      it(`option: project`, async function() {
+
+        const project = new Project({ id: randomUUID() }).getReference()
+        const lemma   = { transcription: { Modern: `qasi` } }
+
+        const targetLexeme = new Lexeme({
+          language,
+          lemma,
+          projects: [project],
+          target:   true,
+        })
+
+        const distractorLexeme = new Lexeme({
+          language,
+          lemma,
+          projects: [],
+        })
+
+        await db.seedOne(container, targetLexeme)
+        await db.seedOne(container, distractorLexeme)
+
+        const { data, status } = await db.searchLexemes(`qasi`, { project: project.id })
+
+        expect(status).to.equal(200)
+        expect(data).to.have.length(1)
+        expect(data[0].target).to.be.true
 
       })
 
