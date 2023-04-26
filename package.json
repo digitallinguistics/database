@@ -1,6 +1,6 @@
 {
   "name": "@digitallinguistics/db",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "A Node.js Cosmos DB client for DLx projects.",
   "keywords": [
     "Cosmos DB",
