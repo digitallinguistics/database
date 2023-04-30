@@ -29,6 +29,7 @@
     "access": "public"
   },
   "scripts": {
+    "setup-db": "node setupDatabase.js",
     "start-db": "powershell -NoProfile -ExecutionPolicy Unrestricted -Command ./start.ps1",
     "stop-db": "cd C:\\Program Files\\Azure Cosmos DB Emulator && Microsoft.Azure.Cosmos.Emulator.exe /Shutdown",
     "stop-only": "stop-only --folder . --skip node_modules",
